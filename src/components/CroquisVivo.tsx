@@ -188,12 +188,21 @@ export default function CroquisVivo() {
     }
     if (run) {
       const f = run.frames[Math.min(frameRef.current, run.frames.length - 1)];
+      const atEnd = frameRef.current >= run.frames.length - 1;
       for (let k = 0; k < run.agents.length; k++) {
         if (f.s[k] === 2) continue;
         const st = f.s[k];
         ctx.fillStyle = st === 0 ? T["person-wait"] : st === 3 ? T["person-run"] : T.person;
         ctx.beginPath(); ctx.arc(f.x[k], f.y[k], 0.34, 0, 6.284); ctx.fill();
         ctx.strokeStyle = T.paper; ctx.lineWidth = 1.4 * u; ctx.stroke();
+        // al cerrar el simulacro, quien sigue dentro se marca sobre el plano:
+        // la respuesta tiene que estar donde está el ojo, no en el panel de al lado.
+        if (atEnd && run.agents[k].state !== 2) {
+          ctx.strokeStyle = T.obs; ctx.lineWidth = 2.4 * u;
+          ctx.beginPath(); ctx.arc(f.x[k], f.y[k], 0.78, 0, 6.284); ctx.stroke();
+          ctx.beginPath(); ctx.arc(f.x[k], f.y[k], 1.15, 0, 6.284); ctx.globalAlpha = 0.45; ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
         if (hoverRef.current === k) {
           ctx.strokeStyle = T.ink; ctx.lineWidth = 2.2 * u;
           ctx.beginPath(); ctx.arc(f.x[k], f.y[k], 0.62, 0, 6.284); ctx.stroke();
@@ -433,8 +442,9 @@ export default function CroquisVivo() {
           <aside className="col left">
             <h2 className="sec">Sitio</h2>
             <div className="fieldset">
+              <label className="lbl" htmlFor="sitio">Cambia de escenario aquí</label>
               <select
-                aria-label="Sitio" value={siteKey}
+                id="sitio" aria-label="Sitio" value={siteKey}
                 onChange={(e) => {
                   setSiteKey(e.target.value);
                   siteRef.current = PRESETS[e.target.value]();
@@ -520,7 +530,7 @@ export default function CroquisVivo() {
             </div>
 
             <div className="stats">
-              {["Tiempo", "Evacuadas", "Sin reaccionar", "En fila", "No oyen la alarma"].map((k, i) => (
+              {["Tiempo", "Evacuadas", "Aún no reaccionan", "Atoradas en fila", "No oyen la alarma"].map((k, i) => (
                 <div className="stat" key={k}>
                   <div className="k">{k}</div>
                   <div className="v" ref={(el) => { statRefs.current[i] = el }}>—</div>
@@ -546,9 +556,17 @@ export default function CroquisVivo() {
                 <p className="empty">Sin hallazgos en este croquis.</p>
               ) : (
                 <>
+                  <div className="runhead">
+                    <span className="lbl">Simulacro calculado</span>
+                    <b>{siteRef.current.name}</b>
+                    <span>
+                      {run ? `${run.agents.length} personas · ${run.evacuated} evacuadas · última salida ${fmt(run.tLast)}` : ""}
+                    </span>
+                  </div>
                   <p className="lead">
-                    {findings.length} hallazgos en este simulacro. Al aplicar una corrección, el simulacro se
-                    vuelve a correr con el mismo escenario para medir si sirvió.
+                    Estos {findings.length} hallazgos son de este croquis y ya están calculados: el botón
+                    <b> Activar alarma</b> reproduce lo que pasó, no lo vuelve a calcular. Si cambias el croquis o
+                    aplicas una corrección, el simulacro se recalcula y estos hallazgos cambian.
                   </p>
                   {findings.map((f, i) => (
                     <div className={"finding " + f.sev} key={f.title + i}>
@@ -611,7 +629,12 @@ function Report({ run, prev, siteName, fixes }: {
     <>
       <div className="rep-h">Evidencia del simulacro</div>
       <div style={{ fontSize: "12.5px", color: "var(--ink-2)", marginBottom: 2 }}>{siteName}</div>
-      <div className="rep-h">Cobertura</div>
+      <p className="scope">
+        <b>Lo que estos números sí son:</b> el resultado medido del simulacro sobre este croquis —tiempos,
+        conteos y decibeles salen del cálculo. <b>Lo que no son:</b> la certificación, que sólo emite
+        Protección Civil. Los nombres del personal son inventados; las mediciones no.
+      </p>
+      <div className="rep-h">Cobertura · medida en este simulacro</div>
       <Row k="Personas en el inmueble" v={run.agents.length} />
       <Row k="Evacuadas" v={run.evacuated} />
       <Row k="Sin evacuar al cierre" v={run.never} />
@@ -633,7 +656,7 @@ function Report({ run, prev, siteName, fixes }: {
           </p>
         </>
       )}
-      <div className="rep-h">Personas (datos inventados)</div>
+      <div className="rep-h">Personas · nombres inventados, mediciones reales</div>
       <div className="tscroll">
         <table>
           <tbody>
